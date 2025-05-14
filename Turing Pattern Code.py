@@ -1,13 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+import pandas as pd
 from scipy.optimize import fsolve
 
 #set parameters
-N = 200 #grid size
-Du, Dv = 0.01, 1.0 #diffusivity of morphogens
-F, k = 0.035, 0.065 
-h = 1.0
 alpha, beta = 0.1, 0.9 #gierer-meinhardt parameters
 ksq_max, n_k = 200, 1000
 
@@ -44,19 +40,26 @@ J0 = np.array([[f_u, f_v],
                [g_u, g_v]])
 
 ksq = np.linspace(0, ksq_max, n_k)           # k^2 values to try
-growth = np.empty_like(ksq)
+#growth = np.empty_like(ksq)
 
-for i, k2 in enumerate(ksq):
-    Jk = J0 - np.diag([Du, Dv]) * k2
-    eigs = np.linalg.eigvals(Jk)
-    growth[i] = np.max(eigs.real)
+# 5) Sweep D_u and D_v
+Du_vals = np.arange(0.001, 2.001, 0.05)
+Dv_vals = Du_vals.copy()
 
-stable_no_diff = growth[0] < 0
-unstable_with_diff = np.any(growth[1:] > 0)
+records = []
+for Du in Du_vals:
+    for Dv in Dv_vals:
+        # compute max real eigenvalue across ksq
+        growth = [np.max(np.linalg.eigvals(J0 - np.diag([Du, Dv]) * k2).real) 
+                  for k2 in ksq]
+        # Turing instability criteria
+        stable_no_diff    = growth[0] < 0
+        unstable_with_diff = np.any(np.array(growth[1:]) > 0)
+        turing_flag = int(stable_no_diff and unstable_with_diff)
+        records.append({'Du': Du, 'Dv': Dv, 'turing': turing_flag})
 
-if stable_no_diff and unstable_with_diff:
-    # find first unstable k
-    k2_crit = ksq[np.argmax(growth)]
-    print(f"Turing instability! grows fastest at k^2 ≈ {k2_crit:.2f}, growth rate ≈ {growth.max():.3f}")
-else:
-    print("No Turing instability in these parameters.")
+# 6) Save results to Excel
+df = pd.DataFrame(records)
+excel_path = 'C:/Users/bella/OneDrive - Imperial College London/Python/Turing Pattens/turing_sweep.xlsx'
+df.to_excel(excel_path, index=False)
+
